@@ -1,0 +1,139 @@
+---
+title: "Projet"
+author: "BENOLIEL"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+```
+
+
+Attention beaucoup de messages d'alertes pour lesquelles je ne prête pas attention.
+```{r}
+library(dplyr)
+library(readr)
+library(sf)
+
+dvf_21 <- read_csv("35_2021.csv")
+dvf_23 <- read_csv("35_2023.csv")
+
+dvf <- bind_rows(dvf_21, dvf_23)
+dvf <- dvf[,-c(3,13,14,15,17, 26)]
+
+dvf <- dvf %>%
+  filter(!is.na(longitude), !is.na(latitude), !is.na(valeur_fonciere))
+
+dvf$type_local <- as.factor(dvf$type_local)
+dvf$nature_culture <- as.factor(dvf$nature_culture)
+dvf$nature_culture_speciale <- as.factor(dvf$nature_culture_speciale)
+
+rm(dvf_21, dvf_23)
+```
+
+```{r}
+dvf$type_local <- as.factor(dvf$type_local)
+dvf$nature_culture <- as.factor(dvf$nature_culture)
+dvf$nature_culture_speciale <- as.factor(dvf$nature_culture_speciale)
+
+dvf <- st_as_sf(dvf, coords = c("longitude", "latitude"), crs = 4326) 
+
+dvf$date_mutation <- substr(dvf$date_mutation, 1, 4)
+
+dvf <- dvf %>% filter(code_commune %in% c(35238, 35353, 35210, 35278, 35024, 35051, 35055, 35206, 35281))
+
+summary(dvf)
+```
+
+```{r}
+filosofi <- st_read("carreaux_200m_met.shp")
+filosofi <- filosofi[,-c(2,3,5)]
+
+filosofi <- filosofi %>% filter(lcog_geo %in% 
+                                  c(35238, 35353, 35210, 35278, 35024, 35051, 35055, 35206, 35281,
+                                    3523835353, 3523835210, 3523835278, 3523835024, 3523835051, 3523835055, 3523835206, 3523835281,
+                                    3535335238, 3521035238, 3527835238, 3502435238, 3505135238, 3505535238, 3520635238, 3528135238))
+```
+```{r}
+# Saint-Jacques Gaité : 48.09197,-1.70366
+# La Courrouze : 48.09652,-1.69850
+# Cleunay : 48.10087,-1.70641
+# Mabilais : 48.10505,-1.69279
+# Colombier : 48.10590,-1.68207
+# Gares : 48.10413,-1.67259
+# Saint Germain : 48.10413,-1.67259
+# Sainte-Anne : 48.11453,-1.68017
+# Jules Ferry : 48.11866,-1.67093
+# Gros-Chêne : 48.12518,-1.66442
+# Les Gayeulles : 48.12940,-1.65715
+# Joliot-Curie Chateaubriand : 48.12406,-1.65142
+# Beaulieu Université : 48.12212,-1.63910
+# Atalante : 48.12712,-1.62807
+# Cessson-Viasilva : 48.13149,-1.62005
+
+metro <- data.frame(
+  station = c("Saint-Jacques Gaité", "La Courrouze", "Cleunay", "Mabilais", "Colombier", "Gares",
+               "Saint Germain", "Sainte-Anne", "Jules Ferry", "Gros-Chêne", "Les Gayeulles", 
+               "Joliot-Curie Chateaubriand", "Beaulieu Université", "Atalante", "Cessson-Viasilva"),
+  latitude = c(48.09197, 48.09652, 48.10087, 48.10505, 48.10590, 48.10413, 48.10413, 48.11453, 
+               48.11866, 48.12518, 48.12940, 48.12406, 48.12212, 48.12712, 48.13149),
+  longitude = c(-1.70366, -1.69850, -1.70641, -1.69279, -1.68207, -1.67259, -1.67259, -1.68017, 
+                -1.67093, -1.66442, -1.65715, -1.65142, -1.63910, -1.62807, -1.62005)
+)
+
+# Créer un objet sf à partir du dataframe
+metro <- metro %>%
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)  # Le CRS 4326 correspond à WGS84 (latitude/longitude)
+
+buffer_metro <- st_buffer(metro, dist = units::set_units(500, m))
+
+map_metro <- mapview(buffer_metro, col.regions="red", legend=FALSE)
+```
+
+
+```{r}
+library(mapview)
+mapview(filosofi)
+```
+
+
+```{r}
+library(leafsync)
+library(leaflet.extras2)
+library(classInt)
+
+# Calcul des seuils avec la méthode de découpage souhaitée (par exemple, quantiles)
+nb_classes <- 5  # Nombre de classes désirées
+
+breaks <- classIntervals(
+  dvf$valeur_fonciere, 
+  n = nb_classes, 
+  style = "quantile"
+)$brks
+
+palette_custom <- colorRampPalette(c("#BBD8F2", "#286AC7")) 
+
+map_21 <- mapview(dvf %>% filter(date_mutation==2021), 
+                  layer.name = "2021",
+                  zcol= "valeur_fonciere",
+                  at = breaks,
+                  col.regions = palette_custom,
+                  homebutton = FALSE) + map_metro
+
+palette_custom <- colorRampPalette(c("#FFF9E6", "#FFC300"))  # Jaune pâle -> Jaune vif
+
+  
+map_23 <- mapview(dvf %>% filter(date_mutation==2023),
+                  layer.name = "2023",
+                  zcol= "valeur_fonciere",
+                  at = breaks,
+                  col.regions = palette_custom,
+                  homebutton = FALSE) + map_metro
+  
+#map_compa <- map_21 | map_23
+#map_compa
+sync(map_21,map_23, ncol = 1)
+```
+
