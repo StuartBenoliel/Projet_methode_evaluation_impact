@@ -10,8 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 ```
 
+Attention beaucoup de messages d'alertes dont je ne prête pas attention.
 
-Attention beaucoup de messages d'alertes pour lesquelles je ne prête pas attention.
 ```{r}
 library(dplyr)
 library(readr)
@@ -42,7 +42,7 @@ dvf <- st_as_sf(dvf, coords = c("longitude", "latitude"), crs = 4326)
 
 dvf$date_mutation <- substr(dvf$date_mutation, 1, 4)
 
-dvf <- dvf %>% filter(code_commune %in% c(35238, 35353, 35210, 35278, 35024, 35051, 35055, 35206, 35281))
+dvf <- dvf %>% filter(code_commune %in% c(35238, 35051, 35281))
 
 summary(dvf)
 ```
@@ -52,10 +52,11 @@ filosofi <- st_read("carreaux_200m_met.shp")
 filosofi <- filosofi[,-c(2,3,5)]
 
 filosofi <- filosofi %>% filter(lcog_geo %in% 
-                                  c(35238, 35353, 35210, 35278, 35024, 35051, 35055, 35206, 35281,
-                                    3523835353, 3523835210, 3523835278, 3523835024, 3523835051, 3523835055, 3523835206, 3523835281,
-                                    3535335238, 3521035238, 3527835238, 3502435238, 3505135238, 3505535238, 3520635238, 3528135238))
+                                  c(35238, 35051, 35281,
+                                    3523835051, 3523835281,
+                                    3505135238, 3528135238))
 ```
+
 ```{r}
 # Saint-Jacques Gaité : 48.09197,-1.70366
 # La Courrouze : 48.09652,-1.69850
@@ -73,23 +74,58 @@ filosofi <- filosofi %>% filter(lcog_geo %in%
 # Atalante : 48.12712,-1.62807
 # Cessson-Viasilva : 48.13149,-1.62005
 
+convert_to_decimal <- function(coord) {
+  # Extraire les degrés, minutes, et secondes
+  dms <- strsplit(coord, "°|′|″")[[1]]
+  degrees <- as.numeric(dms[1])
+  minutes <- as.numeric(dms[2])
+  seconds <- as.numeric(dms[3])
+  
+  # Vérifier si la coordonnée est Ouest ou Sud (doit être négative)
+  if (grepl("O|S", coord)) {
+    sign <- -1
+  } else {
+    sign <- 1
+  }
+  
+  # Calculer la valeur en degrés décimaux
+  sign * (degrees + minutes / 60 + seconds / 3600)
+}
+
 metro <- data.frame(
-  station = c("Saint-Jacques Gaité", "La Courrouze", "Cleunay", "Mabilais", "Colombier", "Gares",
-               "Saint Germain", "Sainte-Anne", "Jules Ferry", "Gros-Chêne", "Les Gayeulles", 
-               "Joliot-Curie Chateaubriand", "Beaulieu Université", "Atalante", "Cessson-Viasilva"),
-  latitude = c(48.09197, 48.09652, 48.10087, 48.10505, 48.10590, 48.10413, 48.10413, 48.11453, 
-               48.11866, 48.12518, 48.12940, 48.12406, 48.12212, 48.12712, 48.13149),
-  longitude = c(-1.70366, -1.69850, -1.70641, -1.69279, -1.68207, -1.67259, -1.67259, -1.68017, 
-                -1.67093, -1.66442, -1.65715, -1.65142, -1.63910, -1.62807, -1.62005)
+  station = c("Saint-Jacques - Gaîté", "La Courrouze", "Cleunay", "Mabilais", "Colombier",
+              "Gares", "Saint-Germain", "Sainte-Anne", "Jules Ferry", "Gros-Chêne", 
+              "Les Gayeulles", "Joliot-Curie - Chateaubriand", "Beaulieu - Université",
+              "Atalante", "Cesson - Viasilva"),
+  
+  latitude = c("48°05′31″ N", "48°05′47″ N", "48°06′03″ N", "48°06′18″ N", "48°06′21″ N",
+              "48°06′14″ N", "48°06′38″ N", "48°06′52″ N", "48°07′07″ N", "48°07′30″ N",
+              "48°07′46″ N", "48°07′27″ N", "48°07′20″ N", "48°07′38″ N", "48°07′54″ N"),
+  
+  longitude = c("1°42′13″ O", "1°41′54″ O", "1°42′23″ O", "1°41′34″ O", "1°40′55″ O",
+               "1°40′20″ O", "1°40′34″ O", "1°40′49″ O", "1°40′15″ O", "1°39′52″ O",
+               "1°39′26″ O", "1°39′05″ O", "1°38′22″ O", "1°37′41″ O", "1°37′12″ O")
 )
+
+metro <- metro %>%
+  mutate(
+    longitude = sapply(longitude, convert_to_decimal),
+    latitude = sapply(latitude, convert_to_decimal)
+  )
 
 # Créer un objet sf à partir du dataframe
 metro <- metro %>%
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326)  # Le CRS 4326 correspond à WGS84 (latitude/longitude)
 
 buffer_metro <- st_buffer(metro, dist = units::set_units(500, m))
+```
 
-map_metro <- mapview(buffer_metro, col.regions="red", legend=FALSE)
+
+```{r}
+library(mapview)
+map_metro <- mapview(metro, col.regions = "black", cex = 2, legend = FALSE) +
+  mapview(buffer_metro, col.regions = "lightgreen", legend = FALSE)
+map_metro
 ```
 
 
@@ -103,6 +139,7 @@ mapview(filosofi)
 library(leafsync)
 library(leaflet.extras2)
 library(classInt)
+library(webshot2)
 
 # Calcul des seuils avec la méthode de découpage souhaitée (par exemple, quantiles)
 nb_classes <- 5  # Nombre de classes désirées
@@ -132,8 +169,64 @@ map_23 <- mapview(dvf %>% filter(date_mutation==2023),
                   col.regions = palette_custom,
                   homebutton = FALSE) + map_metro
   
-#map_compa <- map_21 | map_23
+map_compa <- map_21 | map_23
 #map_compa
-sync(map_21,map_23, ncol = 1)
+#map_compa <- sync(map_21,map_23, ncol = 1)
+
+mapshot(map_compa, url = "map.html")
 ```
 
+```{r}
+dvf$traite <- st_intersects(dvf, buffer_metro, sparse = FALSE) %>% 
+  apply(1, any) 
+
+dvf <- dvf %>%
+  mutate(
+    nearest_metro_distance = st_distance(geometry, metro[st_nearest_feature(geometry, metro), ], by_element = TRUE) %>%
+      as.numeric()  # Convertir en mètres (évite les unités 'units')
+  )
+
+mapview(dvf %>% filter(date_mutation==2023 & traite == FALSE),
+                  layer.name = "2023 : Groupe Contrôle",
+                  zcol= "valeur_fonciere",
+                  at = breaks,
+                  col.regions = colorRampPalette(c("#BBD8F2", "#286AC7")),
+                  homebutton = FALSE) +
+  mapview(dvf %>% filter(date_mutation==2023 & traite == TRUE),
+                  layer.name = "2023 : Groupe Traité",
+                  zcol= "valeur_fonciere",
+                  at = breaks,
+                  col.regions = colorRampPalette(c("#FFF9E6", "#FFC300")),
+                  homebutton = FALSE)
+
+mapview(dvf %>% filter(date_mutation==2023),
+                  layer.name = "2023 : la distance de la bouche de métro de ligne B la plus proche",
+                  zcol= "nearest_metro_distance",
+                  homebutton = FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+df_long <- dvf %>%
+  pivot_longer(cols = c(valeur_fonciere, lot1_surface_carrez, nombre_pieces_principales),
+               names_to = "variable", values_to = "value")
+
+# Créer un graphique avec facettes
+ggplot(df_long, aes(x = traite, y = value, fill = traite, group = traite)) +
+  geom_violin(adjust = 1L, scale = "area", width = 0.8) +
+  geom_boxplot(width = 0.2, position = position_dodge(0.9)) +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  facet_wrap(~ variable, scales = "free_y") +  # Facetter par variable avec échelle libre
+  labs(x = "Treatment", y = "Value")
+```
+
+```{r}
+ggplot(data = dvf) + 
+  geom_point(aes(x=nearest_metro_distance, y= valeur_fonciere, color= traite), alpha = 0.6) +
+  theme_bw() +
+  coord_cartesian(xlim = c(0, 2000), ylim = c(0, quantile(dvf$valeur_fonciere, 0.95, na.rm = TRUE))) +
+  geom_smooth(aes(x = nearest_metro_distance, y = valeur_fonciere), method = "lm", se = FALSE, color = "black") + # Régression linéaire globale
+  geom_smooth(aes(x = nearest_metro_distance, y = valeur_fonciere, color = traite), method = "lm", se = FALSE, size = 2)  # Régressions conditionnelles par 'traite'
+```
