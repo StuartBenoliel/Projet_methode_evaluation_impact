@@ -38,6 +38,7 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+.DS_Store
 
 # pkgdown site
 docs/
@@ -47,3 +48,9 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Mes fichiers de données
+data/
+
+# Mes cartes
+*.html
