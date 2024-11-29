@@ -141,12 +141,15 @@ dvf <- dvf %>%
       as.numeric(),  # Convertir en mètres (évite les unités 'units')
     
     prix_m2 = valeur_fonciere/surface_reelle_bati
-  )
+  ) %>% 
+  filter(id_mutation != "2023-488844" & id_mutation != "2021-596462")
+
+# Ind dont la distance est très éloignée
 
 inf <- quantile(dvf$prix_m2, 0.05, na.rm = TRUE)
 sup <- quantile(dvf$prix_m2, 0.95, na.rm = TRUE)
 
-dvf <- dvf %>% filter(sup >= prix_m2 & prix_m2 >= inf) %>% filter(id_mutation != "2023-488844")
+dvf <- dvf %>% filter(sup >= prix_m2 & prix_m2 >= inf)
 
 table(dvf$date_mutation)
 table(dvf$date_mutation, dvf$traite)
@@ -154,13 +157,16 @@ table(dvf$date_mutation, dvf$traite)
 summary(dvf)
 ```
 
+# Cartographie / Graphique
+
+## Visualisation des groupes traités et de contrôle en 2023
 
 ```{r}
 library(mapview)
 library(webshot)
 library(htmlwidgets)
 
-map_metro <- mapview(
+map <- mapview(
   dvf %>% filter(date_mutation == 2023 & traite == FALSE),
   layer.name = "Groupe Contrôle (2023)",
   col.regions = "blue",  # Bleu pour le groupe contrôle
@@ -175,58 +181,62 @@ map_metro <- mapview(
     homebutton = FALSE
   )
 
-map_metro
+map
 
 # Enregistrer la carte comme HTML
-saveWidget(map_metro@map, "map_metro.html", selfcontained = TRUE)
+saveWidget(map@map, "png/map_traite_controle_2023.html", selfcontained = TRUE)
 
 # Convertir le fichier HTML en PNG
-webshot("map_metro.html", file = "map_metro.png", vwidth = 1000, vheight = 800)
+webshot("png/map_traite_controle_2023.html", file = "png/map_traite_controle_2023.png", 
+        vwidth = 1000, vheight = 800, zoom = 2)
 ```
 
-
+## Visualisation du prix au m2 en 2023
 
 ```{r}
-library(leafsync)
-library(leaflet.extras2)
 library(classInt)
-library(webshot2)
+
+contour_aire_metro <- buffer_metro %>% 
+  st_union() %>% 
+  st_boundary() %>% 
+  st_as_sf()
 
 # Calcul des seuils avec la méthode de découpage souhaitée (par exemple, quantiles)
 nb_classes <- 4  # Nombre de classes désirées
 
 breaks <- classIntervals(
-  dvf$valeur_fonciere, 
+  dvf$prix_m2, 
   n = nb_classes, 
-  style = "quantile"
+  style = "fisher"
 )$brks
 
 # colorRampPalette(c("#FFF9E6", "#FFC300"))  # Jaune pâle -> Jaune vif
 
-palette_custom <- colorRampPalette(c("#FFC300", "#286AC7")) 
-
-map_21 <- mapview(dvf %>% filter(date_mutation==2021), 
-                  layer.name = "2021",
-                  zcol= "valeur_fonciere",
-                  at = breaks,
-                  col.regions = palette_custom,
-                  homebutton = FALSE) + map_metro
+palette_custom <- colorRampPalette(c("white", "#286AC7")) 
 
 
-map_23 <- mapview(dvf %>% filter(date_mutation==2023),
-                  layer.name = "2023",
-                  zcol= "valeur_fonciere",
+map <- mapview(dvf %>% filter(date_mutation==2023),
+                  layer.name = "Prix au mètres carré en 2023",
+                  zcol= "prix_m2",
                   at = breaks,
                   col.regions = palette_custom,
                   map.types = "CartoDB.Positron",
-                  homebutton = FALSE) + map_metro
+                  cex = 3,
+                  homebutton = FALSE) + 
+  mapview(contour_aire_metro, layer.name = "Séparation traité et contrôle",
+          color = "red",          # Utiliser 'color' pour les lignes
+          lwd = 3,
+          homebutton = FALSE)
 
-map_compa <- map_21 | map_23
-#map_compa
-#map_compa <- sync(map_21,map_23, ncol = 1)
+map
 
-mapshot(map_compa, url = "map.html")
+
+saveWidget(map@map, "png/map_prix_2023.html", selfcontained = TRUE)
+webshot("png/map_prix_2023.html", file = "png/map_prix_2023.png", 
+        vwidth = 1000, vheight = 800, zoom = 2)
 ```
+
+## Distribution des distances au station de mètro B
 
 ```{r}
 library(ggplot2)
@@ -235,15 +245,13 @@ ggplot(dvf, aes(x = nearest_metro_distance)) +
   geom_histogram(binwidth = 100 , color = "black", fill = "blue") +
   theme_bw()
 
-mapview(dvf %>% filter(date_mutation==2023),
-        layer.name = "2023 : la distance de la bouche de métro de ligne B la plus proche",
-        zcol= "nearest_metro_distance",
-        homebutton = FALSE)
 ```
 
+## Comparaison des distributions des variables X
 
 ```{r}
 library(tidyverse)
+
 df_long <- dvf %>%
   pivot_longer(cols = c(valeur_fonciere, surface_reelle_bati, nombre_pieces_principales, men_pauv, ind_snv, log_soc, prix_m2),
                names_to = "variable", values_to = "value")
@@ -258,14 +266,16 @@ ggplot(df_long, aes(x = traite, y = value, fill = traite, group = traite)) +
   labs(x = "Treatment", y = "Value")
 ```
 
+# Régression par discontinuité
+
 ```{r}
 
-A <- ggplot(data = dvf_1 %>% filter(date_mutation==2021)) + 
+ggplot(data = dvf %>% filter(date_mutation==2023)) + 
   geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
   theme_bw() +
   geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
   geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
 # Régressions conditionnelles par 'traite'
-
-A
 ```
+
+# Matching via score de propension
