@@ -126,7 +126,7 @@ metro <- metro %>%
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
   st_transform(dvf, crs = 2154)
 
-buffer_metro <- st_buffer(metro, dist = units::set_units(500, m))
+buffer_metro <- st_buffer(metro, dist = units::set_units(1000, m))
 ```
 
 
@@ -185,6 +185,11 @@ mapshot(map_compa, url = "map.html")
 dvf$traite <- st_intersects(dvf, buffer_metro, sparse = FALSE) %>% 
   apply(1, any) 
 
+count(dvf[dvf %>% filter(date_mutation==2021 & traite == FALSE),])
+count(dvf[dvf %>% filter(date_mutation==2021 & traite == TRUE),])
+count(dvf[dvf %>% filter(date_mutation==2023 & traite == FALSE),])
+count(dvf[dvf %>% filter(date_mutation==2023 & traite == TRUE),])
+
 mapview(dvf %>% filter(date_mutation==2023 & traite == FALSE),
                   layer.name = "2023 : Groupe Contrôle",
                   zcol= "valeur_fonciere",
@@ -222,7 +227,7 @@ mapview(dvf %>% filter(date_mutation==2023),
 ```{r}
 library(tidyverse)
 df_long <- dvf %>%
-  pivot_longer(cols = c(valeur_fonciere, surface_reelle_bati, nombre_pieces_principales, men_pauv, ind_snv, log_soc),
+  pivot_longer(cols = c(valeur_fonciere, surface_reelle_bati, nombre_pieces_principales, men_pauv, ind_snv, log_soc, prix_m2),
                names_to = "variable", values_to = "value")
 
 # Créer un graphique avec facettes
@@ -236,10 +241,18 @@ ggplot(df_long, aes(x = traite, y = value, fill = traite, group = traite)) +
 ```
 
 ```{r}
-ggplot(data = dvf) + 
-  geom_point(aes(x=nearest_metro_distance, y= valeur_fonciere, color= traite), alpha = 0.6) +
+dvf$prix_m2 <- dvf$valeur_fonciere/dvf$surface_reelle_bati
+
+inf <- quantile(dvf$prix_m2, 0.05, na.rm = TRUE)
+sup <- quantile(dvf$prix_m2, 0.95, na.rm = TRUE)
+dvf_1 <- distinct(dvf) %>% filter(sup >= prix_m2 & prix_m2 >= inf)
+
+ggplot(data = dvf_1 %>% filter(date_mutation==2023)) + 
+  geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
   theme_bw() +
-  coord_cartesian(xlim = c(0, 2000), ylim = c(0, quantile(dvf$valeur_fonciere, 0.95, na.rm = TRUE))) +
-  geom_smooth(aes(x = nearest_metro_distance, y = valeur_fonciere), method = "lm", se = FALSE, color = "black") + # Régression linéaire globale
-  geom_smooth(aes(x = nearest_metro_distance, y = valeur_fonciere, color = traite), method = "lm", se = FALSE, linewidth = 2)  # Régressions conditionnelles par 'traite'
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2) 
+# Régressions conditionnelles par 'traite'
+
+
 ```
