@@ -10,6 +10,10 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 ```
 
+# Traitement des données
+
+## Importation des données de valeurs fonciaires
+
 ```{r warning=FALSE}
 library(dplyr)
 library(readr)
@@ -22,6 +26,7 @@ dvf_23 <- read_csv("data/35_2023.csv", show_col_types = FALSE)
 
 dvf <- bind_rows(dvf_21, dvf_23)
 dvf <- dvf[,-c(3,6:10,13:30, 34:38)]
+# Suppression des colonnes inutiles
 
 dvf <- dvf %>%
   filter(!is.na(longitude), !is.na(latitude), !is.na(valeur_fonciere))
@@ -35,6 +40,7 @@ Traitement du fichier pour conserver uniquement les données qui nous intéresse
 
 ```{r}
 dvf$type_local <- as.factor(dvf$type_local)
+dvf$code_commune <- as.factor(dvf$code_commune)
 dvf$nature_mutation <- as.factor(dvf$nature_mutation)
 
 dvf <- st_as_sf(dvf, coords = c("longitude", "latitude"), crs = 4326) 
@@ -46,8 +52,13 @@ dvf <- dvf %>%
   filter(nature_mutation %in% c("Vente")) %>% 
   filter(type_local  %in% c("Appartement", "Maison"))
 
+dvf <- dvf[!duplicated(dvf),-3 ]
+# Suppression des doublons
+
 summary(dvf)
 ```
+
+## Importation des données de filosofi
 
 ```{r}
 filosofi <- st_read("data/carreaux_200m_met.shp")
@@ -58,13 +69,6 @@ filosofi <- filosofi %>% filter(lcog_geo %in%
                                   c(35238, 35051, 35281,
                                     3523835051, 3523835281,
                                     3505135238, 3528135238))
-```
-
-Visualisation des carreaux 
-
-```{r}
-library(mapview)
-mapview(filosofi)
 ```
 
 Jointure des données + Reprojection
@@ -80,6 +84,7 @@ summary(dvf)
 rm(filosofi)
 ```
 
+# Création des groupes traités et de controles
 
 ```{r}
 convert_to_decimal <- function(coord) {
@@ -107,12 +112,12 @@ metro <- data.frame(
               "Atalante", "Cesson - Viasilva"),
   
   latitude = c("48°05′31″ N", "48°05′47″ N", "48°06′03″ N", "48°06′18″ N", "48°06′21″ N",
-              "48°06′14″ N", "48°06′38″ N", "48°06′52″ N", "48°07′07″ N", "48°07′30″ N",
-              "48°07′46″ N", "48°07′27″ N", "48°07′20″ N", "48°07′38″ N", "48°07′54″ N"),
+               "48°06′14″ N", "48°06′38″ N", "48°06′52″ N", "48°07′07″ N", "48°07′30″ N",
+               "48°07′46″ N", "48°07′27″ N", "48°07′20″ N", "48°07′38″ N", "48°07′54″ N"),
   
   longitude = c("1°42′13″ O", "1°41′54″ O", "1°42′23″ O", "1°41′34″ O", "1°40′55″ O",
-               "1°40′20″ O", "1°40′34″ O", "1°40′49″ O", "1°40′15″ O", "1°39′52″ O",
-               "1°39′26″ O", "1°39′05″ O", "1°38′22″ O", "1°37′41″ O", "1°37′12″ O")
+                "1°40′20″ O", "1°40′34″ O", "1°40′49″ O", "1°40′15″ O", "1°39′52″ O",
+                "1°39′26″ O", "1°39′05″ O", "1°38′22″ O", "1°37′41″ O", "1°37′12″ O")
 )
 
 metro <- metro %>%
@@ -127,14 +132,56 @@ metro <- metro %>%
   st_transform(dvf, crs = 2154)
 
 buffer_metro <- st_buffer(metro, dist = units::set_units(1000, m))
+
+dvf <- dvf %>%
+  mutate(
+    traite = st_intersects(dvf, buffer_metro, sparse = FALSE) %>% apply(1, any),
+    
+    nearest_metro_distance = st_distance(geometry, metro[st_nearest_feature(geometry, metro), ], by_element = TRUE) %>%
+      as.numeric(),  # Convertir en mètres (évite les unités 'units')
+    
+    prix_m2 = valeur_fonciere/surface_reelle_bati
+  )
+
+inf <- quantile(dvf$prix_m2, 0.05, na.rm = TRUE)
+sup <- quantile(dvf$prix_m2, 0.95, na.rm = TRUE)
+
+dvf <- dvf %>% filter(sup >= prix_m2 & prix_m2 >= inf) %>% filter(id_mutation != "2023-488844")
+
+table(dvf$date_mutation)
+table(dvf$date_mutation, dvf$traite)
+
+summary(dvf)
 ```
 
 
 ```{r}
 library(mapview)
-map_metro <- mapview(metro, col.regions = "black", cex = 2, legend = FALSE) +
-  mapview(buffer_metro, col.regions = "lightgreen", legend = FALSE)
+library(webshot)
+library(htmlwidgets)
+
+map_metro <- mapview(
+  dvf %>% filter(date_mutation == 2023 & traite == FALSE),
+  layer.name = "Groupe Contrôle (2023)",
+  col.regions = "blue",  # Bleu pour le groupe contrôle
+  cex = 3,  # Ajuste la taille des points
+  homebutton = FALSE
+) + 
+  mapview(
+    dvf %>% filter(date_mutation == 2023 & traite == TRUE),
+    layer.name = "Groupe Traité (2023)",
+    col.regions = "red",  # Rouge pour le groupe traité
+    cex = 3,
+    homebutton = FALSE
+  )
+
 map_metro
+
+# Enregistrer la carte comme HTML
+saveWidget(map_metro@map, "map_metro.html", selfcontained = TRUE)
+
+# Convertir le fichier HTML en PNG
+webshot("map_metro.html", file = "map_metro.png", vwidth = 1000, vheight = 800)
 ```
 
 
@@ -154,7 +201,7 @@ breaks <- classIntervals(
   style = "quantile"
 )$brks
 
- # colorRampPalette(c("#FFF9E6", "#FFC300"))  # Jaune pâle -> Jaune vif
+# colorRampPalette(c("#FFF9E6", "#FFC300"))  # Jaune pâle -> Jaune vif
 
 palette_custom <- colorRampPalette(c("#FFC300", "#286AC7")) 
 
@@ -165,7 +212,7 @@ map_21 <- mapview(dvf %>% filter(date_mutation==2021),
                   col.regions = palette_custom,
                   homebutton = FALSE) + map_metro
 
-  
+
 map_23 <- mapview(dvf %>% filter(date_mutation==2023),
                   layer.name = "2023",
                   zcol= "valeur_fonciere",
@@ -173,7 +220,7 @@ map_23 <- mapview(dvf %>% filter(date_mutation==2023),
                   col.regions = palette_custom,
                   map.types = "CartoDB.Positron",
                   homebutton = FALSE) + map_metro
-  
+
 map_compa <- map_21 | map_23
 #map_compa
 #map_compa <- sync(map_21,map_23, ncol = 1)
@@ -182,45 +229,16 @@ mapshot(map_compa, url = "map.html")
 ```
 
 ```{r}
-dvf$traite <- st_intersects(dvf, buffer_metro, sparse = FALSE) %>% 
-  apply(1, any) 
-
-count(dvf[dvf %>% filter(date_mutation==2021 & traite == FALSE),])
-count(dvf[dvf %>% filter(date_mutation==2021 & traite == TRUE),])
-count(dvf[dvf %>% filter(date_mutation==2023 & traite == FALSE),])
-count(dvf[dvf %>% filter(date_mutation==2023 & traite == TRUE),])
-
-mapview(dvf %>% filter(date_mutation==2023 & traite == FALSE),
-                  layer.name = "2023 : Groupe Contrôle",
-                  zcol= "valeur_fonciere",
-                  at = breaks,
-                  col.regions = colorRampPalette(c("#BBD8F2", "#286AC7")),
-                  homebutton = FALSE) +
-  mapview(dvf %>% filter(date_mutation==2023 & traite == TRUE),
-                  layer.name = "2023 : Groupe Traité",
-                  zcol= "valeur_fonciere",
-                  at = breaks,
-                  col.regions = colorRampPalette(c("#FFF9E6", "#FFC300")),
-                  homebutton = FALSE)
-```
-
-```{r}
 library(ggplot2)
-
-dvf <- dvf %>%
-  mutate(
-    nearest_metro_distance = st_distance(geometry, metro[st_nearest_feature(geometry, metro), ], by_element = TRUE) %>%
-      as.numeric()  # Convertir en mètres (évite les unités 'units')
-  )
 
 ggplot(dvf, aes(x = nearest_metro_distance)) +
   geom_histogram(binwidth = 100 , color = "black", fill = "blue") +
   theme_bw()
 
 mapview(dvf %>% filter(date_mutation==2023),
-                  layer.name = "2023 : la distance de la bouche de métro de ligne B la plus proche",
-                  zcol= "nearest_metro_distance",
-                  homebutton = FALSE)
+        layer.name = "2023 : la distance de la bouche de métro de ligne B la plus proche",
+        zcol= "nearest_metro_distance",
+        homebutton = FALSE)
 ```
 
 
@@ -241,18 +259,13 @@ ggplot(df_long, aes(x = traite, y = value, fill = traite, group = traite)) +
 ```
 
 ```{r}
-dvf$prix_m2 <- dvf$valeur_fonciere/dvf$surface_reelle_bati
 
-inf <- quantile(dvf$prix_m2, 0.05, na.rm = TRUE)
-sup <- quantile(dvf$prix_m2, 0.95, na.rm = TRUE)
-dvf_1 <- distinct(dvf) %>% filter(sup >= prix_m2 & prix_m2 >= inf)
-
-ggplot(data = dvf_1 %>% filter(date_mutation==2023)) + 
+A <- ggplot(data = dvf_1 %>% filter(date_mutation==2021)) + 
   geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
   theme_bw() +
   geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2) 
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
 # Régressions conditionnelles par 'traite'
 
-
+A
 ```
