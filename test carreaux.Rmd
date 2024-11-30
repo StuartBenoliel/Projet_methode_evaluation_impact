@@ -1,0 +1,236 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-11-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(sf)
+communes <- st_read("~/projet/data/communes-20220101.shp")
+
+codes_insee <- c("35238", "35281", "35051")  # Ajoutez vos codes INSEE ici
+
+# Filtrer les communes
+communes <- communes[communes$insee %in% codes_insee, ]
+
+
+plot(st_geometry(communes))
+```
+
+```{r eval=FALSE, include=FALSE}
+carreaux1 <- st_read("~/projet/data/carreaux_200m_met.shp")
+
+#carreaux <- carreaux1[carreaux1$lcog_geo %in% codes_insee, ]
+carreaux <- carreaux1[grepl(paste(codes_insee, collapse = "|"), carreaux1$lcog_geo), ]
+
+carreaux <- st_transform(carreaux, st_crs(communes))
+
+carreaux <- st_intersection(carreaux, communes)
+
+
+plot(st_geometry(carreaux))
+
+```
+
+
+
+
+
+
+
+
+```{r}
+library(readr)
+rennes2021 <- read_csv("~/projet/data/rennes2021.csv", col_types = cols(valeur_fonciere = col_number()))
+
+cesson2021 <- read_csv("~/projet/data/cesson2021.csv",     col_types = cols(valeur_fonciere = col_number()))
+saintjacques2021 <- read_csv("~/projet/data/saintjacques2021.csv", 
+     col_types = cols(valeur_fonciere = col_number()))
+
+rennes2023 <- read_csv("~/projet/data/rennes2023.csv", 
+    col_types = cols(valeur_fonciere = col_number()))
+cesson2023 <- read_csv("~/projet/data/cesson2023.csv", 
+   col_types = cols(valeur_fonciere = col_number()))
+saintjacques2023 <- read_csv("~/projet/data/saintjacques2023.csv", 
+   col_types = cols(valeur_fonciere = col_number()))
+```
+
+```{r}
+data2021 <- rbind(cesson2021,rennes2021)
+data2021 <- rbind(data2021,saintjacques2021)
+
+
+data2023 <- rbind(cesson2023,rennes2023)
+data2023 <- rbind(data2023,saintjacques2023)
+
+```
+
+
+
+
+
+
+```{r}
+# Charger le package tibble pour un tableau plus structuré
+library(tibble)
+
+# Création des colonnes
+stations <- c("Saint-Jacques - Gaîté", "La Courrouze", "Cleunay", "Mabilais", "Colombier",
+              "Gares", "Saint-Germain", "Sainte-Anne", "Jules Ferry", "Gros-Chêne", 
+              "Les Gayeulles", "Joliot-Curie - Chateaubriand", "Beaulieu - Université",
+              "Atalante", "Cesson - Viasilva")
+
+latitude <- c("48°05′31″ N", "48°05′47″ N", "48°06′03″ N", "48°06′18″ N", "48°06′21″ N",
+              "48°06′14″ N", "48°06′38″ N", "48°06′52″ N", "48°07′07″ N", "48°07′30″ N",
+              "48°07′46″ N", "48°07′27″ N", "48°07′20″ N", "48°07′38″ N", "48°07′54″ N")
+
+longitude <- c("1°42′13″ O", "1°41′54″ O", "1°42′23″ O", "1°41′34″ O", "1°40′55″ O",
+               "1°40′20″ O", "1°40′34″ O", "1°40′49″ O", "1°40′15″ O", "1°39′52″ O",
+               "1°39′26″ O", "1°39′05″ O", "1°38′22″ O", "1°37′41″ O", "1°37′12″ O")
+
+commune_quartier <- c("Saint-Jacques-de-la-Lande (La Courrouze)", "Saint-Jacques-de-la-Lande (La Courrouze)",
+                      "Rennes (Cleunay)", "Rennes (Arsenal-Redon)", "Rennes (Colombier - Champ-de-Mars)",
+                      "Rennes (Saint-Hélier)", "Rennes (Centre-ville)", "Rennes (Centre-ville)",
+                      "Rennes (Fougères - Sévigné)", "Rennes (Maurepas)", "Rennes (Maurepas)",
+                      "Rennes (Longs-Champs, Jeanne d’Arc)", "Rennes (Beaulieu)",
+                      "Cesson-Sévigné (Campagne Nord / Via Silva)", "Cesson-Sévigné (Campagne Nord / Via Silva)")
+
+remarques <- c("Parc relais", "", "", "", "Connexion ligne A",
+               "Grandes lignes, TER Bretagne", "Connexion ligne A", "Connexion ligne A", "",
+               "", "Parc relais", "", "", "", "Parc relais")
+
+# Créer un tableau structuré
+metro_data <- tibble(
+  Station = stations,
+  Latitude = latitude,
+  Longitude = longitude,
+  Commune_Quartier = commune_quartier,
+  Remarques = remarques
+)
+
+# Afficher les données
+print(metro_data)
+
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+transactions2021 <- data2021 %>%
+  select(Latitude = latitude, Longitude = longitude, Nature = nature_mutation)
+
+# Fonction pour convertir les coordonnées DMS (degrés, minutes, secondes) en degrés décimaux
+convert_to_decimal <- function(coord) {
+  # Extraire les degrés, minutes, et secondes
+  dms <- strsplit(coord, "°|′|″")[[1]]
+  degrees <- as.numeric(dms[1])
+  minutes <- as.numeric(dms[2])
+  seconds <- as.numeric(dms[3])
+  
+  # Vérifier si la coordonnée est Ouest ou Sud (doit être négative)
+  if (grepl("O|S", coord)) {
+    sign <- -1
+  } else {
+    sign <- 1
+  }
+  
+  # Calculer la valeur en degrés décimaux
+  sign * (degrees + minutes / 60 + seconds / 3600)
+}
+
+# Appliquer cette fonction à metro_data
+metro_data <- metro_data %>%
+  mutate(
+    Longitude = sapply(Longitude, convert_to_decimal),
+    Latitude = sapply(Latitude, convert_to_decimal)
+  )
+
+
+ggplot() +
+  # Ajouter le fond des communes
+  geom_sf(data = communes, fill = "lightgray", color = "black", alpha = 0.3) +
+  
+  # Ajouter les points des transactions en rouge
+  geom_point(data = transactions2021, aes(x = Longitude, y = Latitude), color = "red", size = 2, alpha = 0.7) +
+  
+  # Ajouter les points des stations de métro en bleu
+  geom_point(data = metro_data, aes(x = Longitude, y = Latitude), color = "blue", size = 2, alpha = 0.7) +
+  
+  # Ajouter des lignes entre les stations de métro
+  geom_path(data = metro_data
+            , aes(x = Longitude, y = Latitude), color = "blue", size = 1, alpha = 0.7) +
+  
+  # Personnalisation du thème
+  theme_minimal() +
+  
+  # Ajouter des titres et labels
+  labs(
+    title = "Carte des transactions en 2021 le long de la ligne B",
+    subtitle = "Transactions et stations de métro",
+    x = "Longitude",
+    y = "Latitude"
+  ) +
+  
+  scale_color_manual(
+    values = c("Transactions" = "red", "Stations de métro" = "blue"),
+    name = "Type de données",
+    labels = c("Transactions", "Stations de métro")
+  ) +
+  
+  # Ajuster la position de la légende
+  theme(legend.position = "right")
+
+
+```
+
+
+
+
+```{r}
+ggplot() +
+  # Ajouter le fond des communes
+  geom_sf(data = communes, fill = "lightgray", color = "black", alpha = 0.3) +
+  geom_sf(data = carreaux, fill = "lightgray", color = "yellow", alpha = 0.3) +
+
+  # Ajouter les points des stations de métro en bleu
+  geom_point(data = metro_data, aes(x = Longitude, y = Latitude), color = "blue", size = 2, alpha = 0.7) +
+  
+  # Ajouter des lignes entre les stations de métro
+  geom_path(data = metro_data
+            , aes(x = Longitude, y = Latitude), color = "blue", size = 1, alpha = 0.7) +
+  
+  # Personnalisation du thème
+  theme_minimal() +
+  
+  # Ajouter des titres et labels
+  labs(
+    title = "Carte des transactions en 2021 le long de la ligne B",
+    subtitle = "Transactions et stations de métro",
+    x = "Longitude",
+    y = "Latitude"
+  ) +
+  
+  scale_color_manual(
+    values = c("Transactions" = NA, "Stations de métro" = "blue"),
+    name = "Type de données",
+    labels = c("Transactions", "Stations de métro")
+  ) +
+  
+  # Ajuster la position de la légende
+  theme(legend.position = "right")
+
+
+```
+
+```{r}
+V4_repartis <- st_join(transactions2021, carreaux, join = st_within)
+
+```
+
