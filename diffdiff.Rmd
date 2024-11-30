@@ -214,3 +214,65 @@ cat("Effet Diff-in-Diff :", effet_diff_diff, "\n")
 
 ```
 
+
+
+```{r}
+library(ggplot2)
+
+# Création du boxplot
+ggplot(dvf_diff, aes(x = period, y = prix_m2, fill = traite)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("FALSE" = "#56B4E9", "TRUE" = "#E69F00"), labels = c("Non traité", "Traité")) +
+  labs(
+    title = "Prix au mètre carré selon le traitement et la période",
+    x = "Période",
+    y = "Prix au m²",
+    fill = "Groupe"
+  ) +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+# Boxplot pour le nombre de pièces principales
+ggplot(dvf_diff, aes(x = period, y = nombre_pieces_principales, fill = traite)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("FALSE" = "#56B4E9", "TRUE" = "#E69F00"), labels = c("Non traité", "Traité")) +
+  labs(
+    title = "Nombre de pièces principales selon le traitement et la période",
+    x = "Période",
+    y = "Nombre de pièces principales",
+    fill = "Groupe"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+library(ggplot2)
+
+# Moyenne du nombre de pièces principales par groupe et période
+mean_pieces <- dvf_diff %>%
+  group_by(traite, period) %>%
+  summarise(mean_pieces = mean(nombre_pieces_principales, na.rm = TRUE))
+
+print(mean_pieces)
+
+
+
+# Graphique en barres pour les moyennes
+ggplot(mean_pieces, aes(x = period, y = mean_pieces, fill = traite)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("FALSE" = "#56B4E9", "TRUE" = "#E69F00"), labels = c("Non traité", "Traité")) +
+  labs(
+    title = "Changement du nombre moyen de pièces principales",
+    x = "Période",
+    y = "Nombre moyen de pièces",
+    fill = "Groupe"
+  ) +
+  theme_minimal()
+
+```
+
