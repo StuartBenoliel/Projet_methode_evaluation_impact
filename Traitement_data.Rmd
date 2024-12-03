@@ -8,6 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
+
+seuil = 1000
 ```
 
 # Traitement des données
@@ -131,7 +133,7 @@ metro <- metro %>%
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
   st_transform(dvf, crs = 2154)
 
-buffer_metro <- st_buffer(metro, dist = units::set_units(1000, m))
+buffer_metro <- st_buffer(metro, dist = units::set_units(seuil, m))
 
 dvf <- dvf %>%
   mutate(
@@ -153,8 +155,6 @@ dvf <- dvf %>% filter(sup >= prix_m2 & prix_m2 >= inf)
 
 table(dvf$date_mutation)
 table(dvf$date_mutation, dvf$traite)
-
-cor(dvf$surface_reelle_bati, dvf$nombre_pieces_principales)
 
 summary(dvf)
 ```
