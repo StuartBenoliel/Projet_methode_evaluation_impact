@@ -131,7 +131,7 @@ metro <- metro %>%
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
   st_transform(dvf, crs = 2154)
 
-buffer_metro <- st_buffer(metro, dist = units::set_units(500, m))
+buffer_metro <- st_buffer(metro, dist = units::set_units(1000, m))
 
 dvf <- dvf %>%
   mutate(
@@ -165,7 +165,7 @@ dvf_diff <- dvf_diff %>%
   mutate(period = if_else(date_mutation == "2021", "before", "after"))
 
 model_diff <- lm(
-  prix_m2 ~ traite * period,
+  prix_m2 ~ traite * period + type_local + nombre_pieces_principales,
   data = dvf_diff
 )
 
