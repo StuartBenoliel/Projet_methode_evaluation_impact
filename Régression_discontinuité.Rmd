@@ -1,0 +1,21 @@
+---
+title: "Projet"
+author: "BENOLIEL"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Régression par discontinuité
+
+```{r}
+ggplot(data = dvf %>% filter(date_mutation==2023)) + 
+  geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
+  theme_bw() +
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
+# Régressions conditionnelles par 'traite'
+```

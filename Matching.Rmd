@@ -1,0 +1,146 @@
+---
+title: "Projet"
+author: "BENOLIEL"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Matching via score de propension
+
+```{r}
+library(ggplot2)
+library(MatchIt)
+
+dvf_23 <- dvf[dvf$date_mutation==2023, ]
+
+dvf_23 <- dvf_23 %>% 
+  select(-c(ind_0_3, ind_4_5, ind_6_10, ind_11_17, ind_18_24, ind_25_39, 
+            ind_40_54, ind_55_64, ind_65_79, ind_80p, ind, men, ind_inc, log_inc,
+            men_surf, men_coll, men_mais, men_prop, men_fmp, men_1ind, men_5ind))
+
+var_aux <- colnames(dvf_23)
+var_aux <- var_aux[!var_aux %in% c("id_mutation", "date_mutation", "code_commune", "nom_commune", "geometry", "traite", "nearest_metro_distance", "prix_m2", 'ind_snv', "men_pauv")]
+
+ps <- glm(paste("traite ~", paste(var_aux, collapse = " + ")), family = binomial(), dvf_23)
+
+step(ps,direction="both")
+
+ps <- glm(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
+    ind_snv + log_av45 + log_45_70 + log_ap90 + log_soc, family = binomial(), dvf_23)
+summary(ps) 
+
+dvf_23$psvalue <- predict(ps, type = "response")
+
+pred.class <- ifelse(dvf_23$psvalue>=0.5,"Traitement","Contrôle")
+confusion <-  table(dvf_23$traite,pred.class,dnn=list("Observé","Predit"))
+confusion
+```
+
+
+```{r}
+## support commun 
+g1 <- ggplot(dvf_23, aes(x=psvalue, fill=traite, color = traite))+
+  geom_histogram(position= "identity",alpha = 0.5)+
+  theme_bw(base_size = 8)
+
+g2 <- ggplot(dvf_23)+
+  geom_density(aes(psvalue),dvf_23[dvf_23$traite==1,],col="lightblue", linewidth=0.6)+
+  geom_density(aes(psvalue),dvf_23[dvf_23$traite==0,],col="pink", linewidth = 0.6)+
+  theme_bw(base_size = 8)
+
+gridExtra::grid.arrange(g1,g2, ncol=2)
+
+summary(dvf_23[dvf_23$traite==0,]$psvalue)
+summary(dvf_23[dvf_23$traite==1,]$psvalue)
+```
+
+# Méthode de base
+
+```{r}
+# 4. appariement
+?matchit
+ps_match <- matchit(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
+    ind_snv + log_av45 + log_45_70 + log_ap90 + log_soc, data = dvf_23)
+ps_match
+summary(ps_match)
+
+# QQ plot touche entrée pour changer de variables
+plot(ps_match) # les points en dehors de l'intervalle posent pb. ici seule la variable Beds est correcte. 
+
+# histogramme des score des propension 1ere colonne données brutes, 2eme colonne données appariées
+# on veut que les histogrammes soient identiques traités/controle pour la colonne apparié, ce qui n'est pas du tout le cas
+plot(ps_match,type="hist") 
+# support commun peut être visualisé avec l'argument type = jitter
+plot(ps_match,type="jitter")
+# on cherche une répartition similaire entre traités et controle du jdd apparié
+
+# graphe diagnostic
+cobalt::love.plot(ps_match, drop.distance = TRUE)
+
+# extraire les données 
+match.data <- match.data(ps_match) 
+
+# pour récupérer les correspondances
+matches<-data.frame(ps_match$match.matrix) 
+
+# 5. Effet traitement
+t.test(match.data[match.data$traite==1,]$prix_m2,match.data[match.data$traite==0,]$prix_m2, paired=TRUE)
+# regression avec weights
+summary(lm(prix_m2~traite,data=match.data,weights = match.data$weights))
+```
+
+# Méthode avec distance mahalanobis
+
+```{r}
+# 4. appariement
+?matchit
+ps_match <- matchit(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
+    ind_snv + log_av45 + log_45_70 + log_ap90 + log_soc, data = dvf_23, distance = "mahalanobis")
+ps_match
+summary(ps_match)
+
+# graphe diagnostic
+cobalt::love.plot(ps_match, drop.distance = TRUE)
+
+# extraire les données 
+match.data <- match.data(ps_match) 
+
+# 5. Effet traitement
+t.test(match.data[match.data$traite==1,]$prix_m2,match.data[match.data$traite==0,]$prix_m2, paired=TRUE)
+# regression avec weights
+summary(lm(prix_m2~traite,data=match.data,weights = match.data$weights))
+```
+
+# Méthode avec distance mahalanobis et replace = True 
+
+```{r}
+# 4. appariement
+ps_match <- matchit(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
+    log(ind_snv) + log_45_70 + log_ap90 + log_soc, data = dvf_23, distance = "mahalanobis", replace = TRUE)
+
+ps_match <- matchit(as.formula(paste("traite ~", paste(var_aux, collapse = " + "))), data = dvf_23, distance = "mahalanobis", replace = TRUE)
+ps_match
+summary(ps_match)
+
+# On garde log_avant45 ou non ?
+
+# QQ plot touche entrée pour changer de variables
+#plot(ps_match) # les points en dehors de l'intervalle posent pb. ici seule la variable Beds est correcte. 
+# ici le jdd apparié s'écarte encore plus
+```
+
+
+```{r}
+# graphe diagnostic
+cobalt::love.plot(ps_match, drop.distance = TRUE)
+
+# extraire les données 
+match.data <- match.data(ps_match) 
+
+# regression avec weights
+summary(lm(prix_m2~traite,data=match.data,weights = match.data$weights))
+```
