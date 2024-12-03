@@ -23,14 +23,14 @@ dvf_23 <- dvf_23 %>%
             men_surf, men_coll, men_mais, men_prop, men_fmp, men_1ind, men_5ind))
 
 var_aux <- colnames(dvf_23)
-var_aux <- var_aux[!var_aux %in% c("id_mutation", "date_mutation", "code_commune", "nom_commune", "geometry", "traite", "nearest_metro_distance", "prix_m2", 'ind_snv', "men_pauv")]
+var_aux <- var_aux[!var_aux %in% c("id_mutation", "date_mutation", "code_commune", "nom_commune", "geometry", "traite", "nearest_metro_distance", "prix_m2", 'ind_snv', "men_pauv", 'valeur_fonciere')]
 
 ps <- glm(paste("traite ~", paste(var_aux, collapse = " + ")), family = binomial(), dvf_23)
 
 step(ps,direction="both")
 
-ps <- glm(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
-    ind_snv + log_av45 + log_45_70 + log_ap90 + log_soc, family = binomial(), dvf_23)
+ps <- glm(traite ~ type_local + surface_reelle_bati + nombre_pieces_principales + 
+    log_av45 + log_45_70 + log_70_90 + log_ap90 + log_soc, family = binomial(), dvf_23)
 summary(ps) 
 
 dvf_23$psvalue <- predict(ps, type = "response")
@@ -63,8 +63,8 @@ summary(dvf_23[dvf_23$traite==1,]$psvalue)
 ```{r}
 # 4. appariement
 ?matchit
-ps_match <- matchit(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
-    ind_snv + log_av45 + log_45_70 + log_ap90 + log_soc, data = dvf_23)
+ps_match <- matchit(traite ~ type_local + surface_reelle_bati + nombre_pieces_principales + 
+    log_av45 + log_45_70 + log_70_90 + log_ap90 + log_soc, data = dvf_23)
 ps_match
 summary(ps_match)
 
@@ -98,8 +98,8 @@ summary(lm(prix_m2~traite,data=match.data,weights = match.data$weights))
 ```{r}
 # 4. appariement
 ?matchit
-ps_match <- matchit(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
-    ind_snv + log_av45 + log_45_70 + log_ap90 + log_soc, data = dvf_23, distance = "mahalanobis")
+ps_match <- matchit(traite ~ type_local + surface_reelle_bati + nombre_pieces_principales + 
+    log_av45 + log_45_70 + log_70_90 + log_ap90 + log_soc, data = dvf_23, distance = "mahalanobis")
 ps_match
 summary(ps_match)
 
@@ -119,8 +119,8 @@ summary(lm(prix_m2~traite,data=match.data,weights = match.data$weights))
 
 ```{r}
 # 4. appariement
-ps_match <- matchit(traite ~ valeur_fonciere + type_local + surface_reelle_bati + 
-    log(ind_snv) + log_45_70 + log_ap90 + log_soc, data = dvf_23, distance = "mahalanobis", replace = TRUE)
+ps_match <- matchit(traite ~ type_local + surface_reelle_bati + nombre_pieces_principales + 
+    log_av45 + log_45_70 + log_70_90 + log_ap90 + log_soc, data = dvf_23, distance = "mahalanobis", replace = TRUE)
 
 ps_match <- matchit(as.formula(paste("traite ~", paste(var_aux, collapse = " + "))), data = dvf_23, distance = "mahalanobis", replace = TRUE)
 ps_match

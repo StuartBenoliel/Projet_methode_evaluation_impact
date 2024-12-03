@@ -19,3 +19,4 @@ ggplot(data = dvf %>% filter(date_mutation==2023)) +
   geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
 # Régressions conditionnelles par 'traite'
 ```
+

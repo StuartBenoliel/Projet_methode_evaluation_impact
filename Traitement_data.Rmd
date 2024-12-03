@@ -19,10 +19,12 @@ library(dplyr)
 library(readr)
 library(sf)
 
+dvf_19 <- read_csv("data/35_2019.csv", show_col_types = FALSE)
+dvf_20 <- read_csv("data/35_2020.csv", show_col_types = FALSE)
 dvf_21 <- read_csv("data/35_2021.csv", show_col_types = FALSE)
 dvf_23 <- read_csv("data/35_2023.csv", show_col_types = FALSE)
 
-dvf <- bind_rows(dvf_21, dvf_23)
+dvf <- bind_rows(dvf_19, dvf_20, dvf_21, dvf_23)
 dvf <- dvf[,-c(3,6:10,13:30, 34:38)]
 # Suppression des colonnes inutiles
 
@@ -31,7 +33,7 @@ dvf <- dvf %>%
 
 dvf$type_local <- as.factor(dvf$type_local)
 
-rm(dvf_21, dvf_23)
+rm(dvf_19, dvf_20, dvf_21, dvf_23)
 ```
 
 Traitement du fichier pour conserver uniquement les données qui nous intéressent
@@ -151,6 +153,8 @@ dvf <- dvf %>% filter(sup >= prix_m2 & prix_m2 >= inf)
 
 table(dvf$date_mutation)
 table(dvf$date_mutation, dvf$traite)
+
+cor(dvf$surface_reelle_bati, dvf$nombre_pieces_principales)
 
 summary(dvf)
 ```
