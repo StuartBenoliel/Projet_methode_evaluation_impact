@@ -57,6 +57,7 @@ dvf$code_commune <- as.factor(dvf$code_commune)
 
 dvf <- dvf[!duplicated(dvf),-3 ]
 # Suppression des doublons
+dvf <- st_transform(dvf, crs = 2154)
 
 summary(dvf)
 ```
@@ -77,7 +78,6 @@ filosofi <- filosofi[,-c(1,2,3,4,5,6)]
 Jointure des données + Reprojection
 
 ```{r}
-dvf <- st_transform(dvf, crs = 2154)
 dvf <- st_join(dvf, filosofi, join = st_intersects)
 
 dvf <- dvf %>%
@@ -131,7 +131,7 @@ metro <- metro %>%
 # Créer un objet sf à partir du dataframe
 metro <- metro %>%
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  st_transform(dvf, crs = 2154)
+  st_transform(crs = 2154)
 
 buffer_metro <- st_buffer(metro, dist = units::set_units(seuil, m))
 
@@ -144,7 +144,7 @@ dvf <- dvf %>%
     
     prix_m2 = valeur_fonciere/surface_reelle_bati
   ) %>% 
-  filter(id_mutation != "2023-488844" & id_mutation != "2021-596462")
+  filter(id_mutation != "2023-488844" & id_mutation != "2021-596462" & id_mutation != "2021-595984")
 
 # Ind dont la distance est très éloignée
 
@@ -154,7 +154,17 @@ sup <- quantile(dvf$prix_m2, 0.95, na.rm = TRUE)
 dvf <- dvf %>% filter(sup >= prix_m2 & prix_m2 >= inf)
 
 table(dvf$date_mutation)
+
+
 table(dvf$date_mutation, dvf$traite)
+
+table(dvf$date_mutation, dvf$type_local)
+
+tapply(dvf$prix_m2, dvf$date_mutation, mean, na.rm = TRUE) %>% round(0)
+
+tapply(dvf$valeur_fonciere, dvf$date_mutation, mean, na.rm = TRUE) %>% round(0)
+
+tapply(dvf$surface_reelle_bati, dvf$date_mutation, mean, na.rm = TRUE) %>% round(0)
 
 summary(dvf)
 ```
@@ -162,6 +172,8 @@ summary(dvf)
 # Régression par discontinuité
 
 ```{r}
+library(ggplot2)
+
 ggplot(data = dvf %>% filter(date_mutation==2023)) + 
   geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
   theme_bw() +

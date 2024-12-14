@@ -47,7 +47,7 @@ library(htmlwidgets)
 map <- mapview(
   dvf %>% filter(date_mutation == 2023 & traite == FALSE),
   layer.name = "Groupe Contrôle (2023)",
-  col.regions = "blue",  # Bleu pour le groupe contrôle
+  col.regions = "#286AC7",  # Bleu pour le groupe contrôle
   cex = 3,  # Ajuste la taille des points
   homebutton = FALSE
 ) + 
@@ -56,6 +56,13 @@ map <- mapview(
     layer.name = "Groupe Traité (2023)",
     col.regions = "red",  # Rouge pour le groupe traité
     cex = 3,
+    homebutton = FALSE
+  ) +
+  mapview(
+    metro %>% select(-station),
+    layer.name = "Bouche de métro",
+    col.regions = "green",
+    cex = 5,
     homebutton = FALSE
   )
 
@@ -108,9 +115,53 @@ map <- mapview(dvf %>% filter(date_mutation==2023),
 
 map
 
-
 saveWidget(map@map, "png/map_prix_2023.html", selfcontained = TRUE)
 webshot("png/map_prix_2023.html", file = "png/map_prix_2023.png", 
+        vwidth = 1000, vheight = 800, zoom = 2)
+```
+
+## Visualisation du prix au m2 en 2021
+
+```{r}
+library(classInt)
+
+contour_aire_metro <- buffer_metro %>% 
+  st_union() %>% 
+  st_boundary() %>% 
+  st_as_sf()
+
+# Calcul des seuils avec la méthode de découpage souhaitée (par exemple, quantiles)
+nb_classes <- 4  # Nombre de classes désirées
+
+breaks <- classIntervals(
+  dvf$prix_m2, 
+  n = nb_classes, 
+  style = "fisher"
+)$brks
+
+# colorRampPalette(c("#FFF9E6", "#FFC300"))  # Jaune pâle -> Jaune vif
+
+palette_custom <- colorRampPalette(c("white", "#286AC7")) 
+
+
+map <- mapview(dvf %>% filter(date_mutation==2021),
+                  layer.name = "Prix au mètres carré en 2021",
+                  zcol= "prix_m2",
+                  at = breaks,
+                  col.regions = palette_custom,
+                  map.types = "CartoDB.Positron",
+                  cex = 3,
+                  homebutton = FALSE) + 
+  mapview(contour_aire_metro, layer.name = "Séparation traité et contrôle",
+          color = "red",          # Utiliser 'color' pour les lignes
+          lwd = 3,
+          homebutton = FALSE)
+
+map
+
+saveWidget(map@map, "png/map_prix_2021.html", selfcontained = F)
+
+webshot("png/map_prix_2021.html", file = "png/map_prix_2021.png", 
         vwidth = 1000, vheight = 800, zoom = 2)
 ```
 
@@ -118,13 +169,17 @@ webshot("png/map_prix_2023.html", file = "png/map_prix_2023.png",
 
 ```{r}
 library(ggplot2)
-quantile(dvf$nearest_metro_distance, 0.5, na.rm = TRUE)
+dvf %>% filter(date_mutation %in% c(2021, 2023)) %>% 
+  pull(nearest_metro_distance) %>% 
+  quantile(0.5)
 
-ggplot(dvf, aes(x = nearest_metro_distance)) + 
+plot <- ggplot(dvf %>% filter(date_mutation %in% c(2021, 2023)), aes(x = nearest_metro_distance)) + 
   geom_histogram(aes(y = after_stat(count/sum(count))), binwidth = 300, color = "black", fill = "lightblue") + 
   geom_vline(xintercept = 1000, color = "black", linetype = "dashed", size = 1) +
-  labs(y="Fréquence", x="Distance au métro le plus proche") +
+  labs(y="Fréquence", x="Distance à la station de métro la plus proche") +
   theme_bw()
+
+ggsave("png/histogram_distance_metro.png", plot = plot, width = 8, height = 6, dpi = 300)
 
 ```
 
@@ -133,40 +188,54 @@ ggplot(dvf, aes(x = nearest_metro_distance)) +
 ```{r}
 library(tidyverse)
 
-df_long <- dvf %>%
-  pivot_longer(cols = c(valeur_fonciere, surface_reelle_bati, nombre_pieces_principales, log_av45, log_45_70, log_70_90, log_ap90, log_soc, prix_m2),
+df_long <- dvf %>% 
+  filter(date_mutation %in% c(2021, 2023)) %>% 
+  pivot_longer(cols = c(valeur_fonciere, surface_reelle_bati, nombre_pieces_principales, prix_m2),
                names_to = "variable", values_to = "value")
 
-# Créer un graphique avec facettes
-ggplot(df_long, aes(x = traite, y = value, fill = traite, group = traite)) +
+plot <- ggplot(df_long %>% filter(date_mutation == 2021), aes(x = traite, y = value, fill = traite, group = traite)) +
   geom_violin(adjust = 1L, scale = "area", width = 0.8) +
   geom_boxplot(width = 0.2, position = position_dodge(0.9)) +
   scale_fill_hue(direction = 1) +
-  theme_minimal() +
-  facet_wrap(~ variable, scales = "free_y") +  # Facetter par variable avec échelle libre
-  labs(x = "Treatment", y = "Value")
+  theme_bw() +
+  facet_wrap(~ variable, scales = "free_y") +
+  scale_fill_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
+  labs(x = "", y = "", fill="Groupe :")
+
+
+ggsave("png/distrib_var_2021.png", plot = plot, width = 8, height = 6, dpi = 300)
+
+plot <- ggplot(df_long %>% filter(date_mutation == 2023), aes(x = traite, y = value, fill = traite, group = traite)) +
+  geom_violin(adjust = 1L, scale = "area", width = 0.8) +
+  geom_boxplot(width = 0.2, position = position_dodge(0.9)) +
+  scale_fill_hue(direction = 1) +
+  theme_bw() +
+  facet_wrap(~ variable, scales = "free_y") +
+  scale_fill_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
+  labs(x = "", y = "", fill="Groupe :")
+
+ggsave("png/distrib_var_2023.png", plot = plot, width = 8, height = 6, dpi = 300)
 ```
 
 
 ```{r}
-avant <- dvf %>%
-  filter(date_mutation %in% c("2019","2020","2021"))
-
-mean_prix<- avant %>%
+mean_prix<- dvf %>%
   group_by(date_mutation, traite) %>%
   summarise(mean_prix = mean(prix_m2, na.rm = TRUE))
 
-ggplot(mean_prix, aes(x = date_mutation, y = mean_prix, color = traite, group = traite)) +
+plot <- ggplot(mean_prix, aes(x = date_mutation, y = mean_prix, color = traite, group = traite)) +
   geom_point(size = 3) +  # Ajout des points
   geom_line(size = 1) +   # Ajout des lignes pour relier les points
-  scale_color_manual(values = c("FALSE" = "#56B4E9", "TRUE" = "#E69F00"), labels = c("Non traité", "Traité")) +
+  scale_color_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
   labs(
-    title = "Évolution du prix au mètre carré entre 2019 et 2021",
+    title = "",
     x = "Période",
     y = "Prix au m²",
-    color = "Groupe"
+    color = "Groupe :"
   ) +
   theme_bw()
+
+ggsave("png/moy_prix.png", plot = plot, width = 8, height = 6, dpi = 300)
 
 ```
 
