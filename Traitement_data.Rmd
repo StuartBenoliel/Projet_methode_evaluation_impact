@@ -64,7 +64,7 @@ summary(dvf)
 
 ## Importation des données de filosofi
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 filosofi <- st_read("data/carreaux_200m_met.shp")
 
 filosofi <- filosofi %>% filter(lcog_geo %in% 
@@ -77,7 +77,7 @@ filosofi <- filosofi[,-c(1,2,3,4,5,6)]
 
 Jointure des données + Reprojection
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 dvf <- st_join(dvf, filosofi, join = st_intersects)
 
 dvf <- dvf %>%
@@ -169,15 +169,3 @@ tapply(dvf$surface_reelle_bati, dvf$date_mutation, mean, na.rm = TRUE) %>% round
 summary(dvf)
 ```
 
-# Régression par discontinuité
-
-```{r}
-library(ggplot2)
-
-ggplot(data = dvf %>% filter(date_mutation==2023)) + 
-  geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
-  theme_bw() +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
-# Régressions conditionnelles par 'traite'
-```

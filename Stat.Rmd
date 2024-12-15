@@ -219,6 +219,7 @@ ggsave("png/distrib_var_2023.png", plot = plot, width = 8, height = 6, dpi = 300
 
 
 ```{r}
+library(ggplot2)
 mean_prix<- dvf %>%
   group_by(date_mutation, traite) %>%
   summarise(mean_prix = mean(prix_m2, na.rm = TRUE))

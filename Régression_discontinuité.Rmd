@@ -7,6 +7,14 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(stargazer)
+library(rdd) 
+library(rddtools)
+library(AER)
+library(ggthemes)
+library(gridExtra)
 ```
 
 # Régression par discontinuité
@@ -20,3 +28,73 @@ ggplot(data = dvf %>% filter(date_mutation==2023)) +
 # Régressions conditionnelles par 'traite'
 ```
 
+Visualisation du prix au mètre carré
+```{r}
+ggplot(dvf %>% filter(date_mutation=="2023"), aes(x=nearest_metro_distance, y = prix_m2, colour = as.factor(traite)),size=.25) + 
+  geom_jitter(height = .25, width = 0.2, alpha = I(.2)) + 
+  stat_smooth(method = loess, size = 1) +
+  theme_tufte() + 
+  ylab("") + 
+  xlab("") +
+  geom_vline(xintercept = 1000) +
+  theme(legend.position="none")+
+  ggtitle("Prix au m²")
+
+```
+
+```{r}
+# Afficher la distribution des distances proches du cutpoint de 1000
+# Afficher la distribution des distances proches du cutpoint de 1000
+table(dvf$nearest_metro_distance[abs(dvf$nearest_metro_distance - 1000) < 500])
+table(dvf$traite[abs(dvf$nearest_metro_distance - 1000) < 500])
+
+bw_nearest_metro_distance <- rdd::IKbandwidth(dvf$nearest_metro_distance, dvf$prix_m2, cutpoint = 1000)
+```
+
+```{r}
+
+min_distance <- 1000 - bw_nearest_metro_distance
+max_distance <- 1000 + bw_nearest_metro_distance
+
+# Filtrer les individus dont la distance au métro se situe dans l'intervalle spécifié
+df_filtered <- dvf %>%
+  filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance)
+
+# Liste des variables numériques
+numeric_vars <- c('prix_m2', 'ind_snv', 'men_pauv', 'valeur_fonciere')
+
+plot_list <- list()
+
+# Créer les boxplots pour chaque variable numérique
+for (var in numeric_vars) {
+  p <- ggplot(df_filtered, aes(x = as.factor(traite), y = .data[[var]], fill = as.factor(traite))) + 
+    geom_boxplot(alpha = 0.6) + 
+    scale_fill_manual(values = c("red", "blue")) + 
+    labs(title = paste("Boxplot de", var), x = "Traite", y = var) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  plot_list[[var]] <- p  
+}
+
+combined_plot<-grid.arrange(grobs = plot_list, ncol = 2)
+
+
+ggsave("work/Projet_methode_evolution_impact/boxplots_combines.png", combined_plot, width = 10, height = 8, dpi = 300)
+```
+
+```{r}
+m_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance + traite,
+                 data = dvf[dvf$nearest_metro_distance>1000-bw_nearest_metro_distance & dvf$nearest_metro_distance<1000 + bw_nearest_metro_distance,])
+
+summary(m_prix_m2)
+```
+
+```{r}
+ggplot(data = dvf %>% filter(date_mutation==2023)) + 
+  geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
+  theme_bw() +
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
+# Régressions conditionnelles par 'traite'
+```
