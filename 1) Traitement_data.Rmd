@@ -1,6 +1,6 @@
 ---
 title: "Projet"
-author: "BENOLIEL"
+author: "Groupe 6"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -21,6 +21,7 @@ seuil = 1000
 ## Importation des données de valeurs fonciaires
 
 ```{r warning=FALSE}
+# Attention chemin vers les données possiblement à changer !!
 
 dvf_19 <- read_csv("data/35_2019.csv", show_col_types = FALSE)
 dvf_20 <- read_csv("data/35_2020.csv", show_col_types = FALSE)
@@ -61,30 +62,6 @@ dvf <- dvf[!duplicated(dvf),-3 ]
 dvf <- st_transform(dvf, crs = 2154)
 
 summary(dvf)
-```
-
-## Importation des données de filosofi
-
-```{r eval=FALSE, include=FALSE}
-filosofi <- st_read("data/carreaux_200m_met.shp")
-
-filosofi <- filosofi %>% filter(lcog_geo %in% 
-                                  c(35238, 35051, 35281,
-                                    3523835051, 3523835281,
-                                    3505135238, 3528135238))
-
-filosofi <- filosofi[,-c(1,2,3,4,5,6)]
-```
-
-Jointure des données + Reprojection
-
-```{r eval=FALSE, include=FALSE}
-dvf <- st_join(dvf, filosofi, join = st_intersects)
-
-dvf <- dvf %>%
-  filter(!is.na(ind))
-
-rm(filosofi)
 ```
 
 # Création des groupes traités et de controles

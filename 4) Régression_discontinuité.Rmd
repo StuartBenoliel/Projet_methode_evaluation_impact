@@ -1,0 +1,124 @@
+---
+title: "Projet"
+author: "Groupe 6"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(stargazer)
+library(rdd) 
+library(rddtools)
+library(AER)
+library(ggthemes)
+library(gridExtra)
+
+# Lancer Traitement_data.RMD en premier !!!!
+
+dvf_2023 <- dvf %>% filter(date_mutation==2023)
+```
+
+```{r}
+bw_nearest_metro_distance <- rdd::IKbandwidth(dvf_2023$nearest_metro_distance, dvf_2023$prix_m2, cutpoint = 1000, verbose = T)
+
+min_distance <- 1000 - bw_nearest_metro_distance
+max_distance <- 1000 + bw_nearest_metro_distance
+
+df_long <- dvf_2023 %>%
+  filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance) %>% 
+  pivot_longer(cols = c(valeur_fonciere, surface_reelle_bati, nombre_pieces_principales, prix_m2),
+               names_to = "variable", values_to = "value")
+
+plot <- ggplot(df_long, aes(x = traite, y = value, fill = traite, group = traite)) +
+  geom_violin(adjust = 1L, scale = "area", width = 0.8) +
+  geom_boxplot(width = 0.2, position = position_dodge(0.9)) +
+  scale_fill_hue(direction = 1) +
+  theme_bw() +
+  facet_wrap(~ variable, scales = "free_y") +
+  scale_fill_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
+  labs(x = "", y = "", fill="Groupe :")
+
+plot
+
+# ggsave("png/distrib_var_2023_bw.png", plot = plot, width = 8, height = 6, dpi = 300)
+
+min_distance <- 1000 - 2*bw_nearest_metro_distance
+max_distance <- 1000 + 2*bw_nearest_metro_distance
+
+df_long <- dvf_2023 %>%
+  filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance) %>% 
+  pivot_longer(cols = c(valeur_fonciere, surface_reelle_bati, nombre_pieces_principales, prix_m2),
+               names_to = "variable", values_to = "value")
+
+plot <- ggplot(df_long, aes(x = traite, y = value, fill = traite, group = traite)) +
+  geom_violin(adjust = 1L, scale = "area", width = 0.8) +
+  geom_boxplot(width = 0.2, position = position_dodge(0.9)) +
+  scale_fill_hue(direction = 1) +
+  theme_bw() +
+  facet_wrap(~ variable, scales = "free_y") +
+  scale_fill_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
+  labs(x = "", y = "", fill="Groupe :")
+
+plot
+
+# ggsave("png/distrib_var_2023_2bw.png", plot = plot, width = 8, height = 6, dpi = 300)
+```
+
+```{r}
+m1_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance + traite + type_local + nombre_pieces_principales,
+                 data = dvf_2023)
+
+summary(m1_prix_m2)
+
+min_distance <- 1000 - bw_nearest_metro_distance
+max_distance <- 1000 + bw_nearest_metro_distance
+
+m2_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance +traite+ type_local + nombre_pieces_principales,
+                 data = dvf_2023 %>%
+  filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance))
+
+summary(m2_prix_m2)
+
+min_distance <- 1000 - 2*bw_nearest_metro_distance
+max_distance <- 1000 + 2*bw_nearest_metro_distance
+
+m3_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance + traite + type_local + nombre_pieces_principales,
+                 data = dvf_2023 %>%
+  filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance))
+
+summary(m3_prix_m2)
+```
+```{r}
+mod.list <- list(m1_prix_m2, m2_prix_m2, m3_prix_m2)
+stargazer(title = "Full regression models",
+          type="text",
+          header = F,
+          mod.list, 
+          model.names = F,
+          omit.stat = c("rsq","ser","f"),
+          column.labels = c("échantillon complet", "Optimal Bandwidth", "Double Bandwidth")) 
+```
+
+```{r}
+
+plot <- ggplot(dvf_2023, aes(x=nearest_metro_distance, y = prix_m2, colour = as.factor(traite)),size=.25) + 
+  geom_jitter(height = .25, width = 0.2, alpha = I(.2)) +
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2) +
+  theme_bw() + 
+  geom_vline(xintercept = 1000, lty="dashed") +
+  scale_colour_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
+  labs(
+    title = "",
+    x = "Distance au métro",
+    y = "Prix au m²",
+    color = "Groupe :"
+  )
+
+plot
+
+# ggsave("png/prix_distance_2023.png", plot = plot, width = 8, height = 6, dpi = 300)
+
+```

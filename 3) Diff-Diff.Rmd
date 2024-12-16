@@ -1,0 +1,106 @@
+---
+title: "Projet"
+author: "Groupe 6"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Lancer Traitement_data.RMD en premier !!!!
+```
+
+
+
+```{r}
+dvf_diff <- dvf %>%
+  filter(date_mutation %in% c("2021", "2023"))
+
+dvf_diff <- dvf_diff %>%
+  mutate(periode = factor(
+      if_else(date_mutation == "2021", "avant", "après"),
+      levels = c("avant", "après") # "avant" devient la modalité de référence
+    ))
+
+model_diff <- lm(
+  prix_m2 ~ traite * periode + type_local + nombre_pieces_principales,
+  data = dvf_diff
+)
+
+summary(model_diff)
+```
+
+Effet principal : Les zones traitées ont globalement des prix au m² plus élevés, mais cette différence préexistante pourrait être due à d'autres facteurs (localisation, attractivité, etc.).
+
+Effet de l'arrivée du métro : L'interaction suggère un effet très faible (et non significatif), indiquant que l'arrivée du métro n'a pas changé significativement l'écart de prix entre les zones traitées et non traitées.
+
+
+
+
+
+
+
+
+Autre méthode
+
+
+
+
+```{r}
+
+library(tidyverse)
+
+# Moyennes par groupe et période
+mean_prices <- dvf_diff %>%
+  filter(!is.na(prix_m2)) %>%
+  group_by(traite, periode) %>%
+  summarise(mean_prix_m2 = mean(prix_m2, na.rm = TRUE), .groups = "drop")
+
+mean_prices <- st_drop_geometry(mean_prices)
+
+
+delta_non_traite <- mean_prices[[2,3]] - mean_prices[[1,3]]
+
+
+delta_traite <- mean_prices[[4,3]] - mean_prices[[3,3]]
+  
+effet_diff_diff <- delta_traite - delta_non_traite
+
+cat("Variation dans le groupe non traité :", delta_non_traite, "\n")
+cat("Variation dans le groupe traité :", delta_traite, "\n")
+cat("Effet Diff-in-Diff :", effet_diff_diff, "\n")
+
+```
+
+```{r warning=FALSE}
+
+mean_prix<- dvf %>%
+  add_row(date_mutation = "2022", traite = NA) %>% 
+  group_by(date_mutation, traite) %>%
+  summarise(mean_prix = mean(prix_m2, na.rm = TRUE))
+
+
+plot <- ggplot(mean_prix, aes(x = date_mutation, y = mean_prix, color = traite, group = traite)) +
+  geom_point(size = 3) +  # Ajout des points
+  geom_line(size = 1) +   # Ajout des lignes pour relier les points
+  scale_color_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité"),
+                     na.translate = FALSE) +
+  labs(
+    title = "",
+    x = "Période",
+    y = "Prix au m²",
+    color = "Groupe :"
+  ) +
+  geom_vline(xintercept = "2022", linetype = "dashed", color = "black", size = 0.2) + 
+  annotate(
+    "text", x = "2022", y = max(mean_prix$mean_prix, na.rm = TRUE) -500, label = "Lancement métro B", 
+    color = "black", angle = 0, hjust = 0.58, size = 4  # Position et style du texte
+  ) +
+  theme_bw()
+
+plot
+#ggsave("png/moy_prix.png", plot = plot, width = 8, height = 6, dpi = 300)
+
+```
+
+

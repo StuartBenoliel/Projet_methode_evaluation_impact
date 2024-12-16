@@ -9,6 +9,32 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+
+
+## Importation des données de filosofi
+
+```{r eval=FALSE, include=FALSE}
+filosofi <- st_read("data/carreaux_200m_met.shp")
+
+filosofi <- filosofi %>% filter(lcog_geo %in% 
+                                  c(35238, 35051, 35281,
+                                    3523835051, 3523835281,
+                                    3505135238, 3528135238))
+
+filosofi <- filosofi[,-c(1,2,3,4,5,6)]
+```
+
+Jointure des données + Reprojection
+
+```{r eval=FALSE, include=FALSE}
+dvf <- st_join(dvf, filosofi, join = st_intersects)
+
+dvf <- dvf %>%
+  filter(!is.na(ind))
+
+rm(filosofi)
+```
 # Matching via score de propension
 
 ```{r}

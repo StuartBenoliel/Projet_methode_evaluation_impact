@@ -1,6 +1,6 @@
 ---
 title: "Projet"
-author: "BENOLIEL"
+author: "Groupe 6"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -15,6 +15,8 @@ library(webshot)
 library(htmlwidgets)
 library(classInt)
 library(ggplot2)
+
+# Lancer Traitement_data.RMD en premier !!!!
 ```
 
 ```{r}
@@ -99,11 +101,11 @@ map <- mapview(
 map
 
 # Enregistrer la carte comme HTML
-saveWidget(map@map, "png/map_traite_controle_2023.html", selfcontained = TRUE)
+#saveWidget(map@map, "png/map_traite_controle_2023.html", selfcontained = TRUE)
 
 # Convertir le fichier HTML en PNG
-webshot("png/map_traite_controle_2023.html", file = "png/map_traite_controle_2023.png", 
-        vwidth = 1000, vheight = 800, zoom = 2)
+#webshot("png/map_traite_controle_2023.html", file = "png/map_traite_controle_2023.png", 
+#        vwidth = 1000, vheight = 800, zoom = 2)
 ```
 
 ## Visualisation du prix au m2 en 2023
@@ -124,8 +126,6 @@ breaks <- classIntervals(
   style = "fisher"
 )$brks
 
-# colorRampPalette(c("#FFF9E6", "#FFC300"))  # Jaune pâle -> Jaune vif
-
 palette_custom <- colorRampPalette(c("white", "#286AC7")) 
 
 
@@ -144,9 +144,9 @@ map <- mapview(dvf %>% filter(date_mutation==2023),
 
 map
 
-saveWidget(map@map, "png/map_prix_2023.html", selfcontained = TRUE)
-webshot("png/map_prix_2023.html", file = "png/map_prix_2023.png", 
-        vwidth = 1000, vheight = 800, zoom = 2)
+#saveWidget(map@map, "png/map_prix_2023.html", selfcontained = TRUE)
+#webshot("png/map_prix_2023.html", file = "png/map_prix_2023.png", 
+#        vwidth = 1000, vheight = 800, zoom = 2)
 ```
 
 ## Visualisation du prix au m2 en 2021
@@ -167,8 +167,6 @@ breaks <- classIntervals(
   style = "fisher"
 )$brks
 
-# colorRampPalette(c("#FFF9E6", "#FFC300"))  # Jaune pâle -> Jaune vif
-
 palette_custom <- colorRampPalette(c("white", "#286AC7")) 
 
 
@@ -187,10 +185,10 @@ map <- mapview(dvf %>% filter(date_mutation==2021),
 
 map
 
-saveWidget(map@map, "png/map_prix_2021.html", selfcontained = F)
+#saveWidget(map@map, "png/map_prix_2021.html", selfcontained = F)
 
-webshot("png/map_prix_2021.html", file = "png/map_prix_2021.png", 
-        vwidth = 1000, vheight = 800, zoom = 2)
+#webshot("png/map_prix_2021.html", file = "png/map_prix_2021.png", 
+#        vwidth = 1000, vheight = 800, zoom = 2)
 ```
 
 ## Distribution des distances au station de mètro B
@@ -207,7 +205,8 @@ plot <- ggplot(dvf %>% filter(date_mutation %in% c(2021, 2023)), aes(x = nearest
   labs(y="Fréquence", x="Distance à la station de métro la plus proche") +
   theme_bw()
 
-ggsave("png/histogram_distance_metro.png", plot = plot, width = 8, height = 6, dpi = 300)
+plot
+#ggsave("png/histogram_distance_metro.png", plot = plot, width = 8, height = 6, dpi = 300)
 
 ```
 
@@ -229,8 +228,10 @@ plot <- ggplot(df_long %>% filter(date_mutation == 2021), aes(x = traite, y = va
   scale_fill_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
   labs(x = "", y = "", fill="Groupe :")
 
+plot
 
-ggsave("png/distrib_var_2021.png", plot = plot, width = 8, height = 6, dpi = 300)
+
+#ggsave("png/distrib_var_2021.png", plot = plot, width = 8, height = 6, dpi = 300)
 
 plot <- ggplot(df_long %>% filter(date_mutation == 2023), aes(x = traite, y = value, fill = traite, group = traite)) +
   geom_violin(adjust = 1L, scale = "area", width = 0.8) +
@@ -241,58 +242,9 @@ plot <- ggplot(df_long %>% filter(date_mutation == 2023), aes(x = traite, y = va
   scale_fill_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
   labs(x = "", y = "", fill="Groupe :")
 
-ggsave("png/distrib_var_2023.png", plot = plot, width = 8, height = 6, dpi = 300)
+plot
+
+#ggsave("png/distrib_var_2023.png", plot = plot, width = 8, height = 6, dpi = 300)
 ```
 
-
-```{r warning=FALSE}
-
-mean_prix<- dvf %>%
-  add_row(date_mutation = "2022", traite = NA) %>% 
-  group_by(date_mutation, traite) %>%
-  summarise(mean_prix = mean(prix_m2, na.rm = TRUE))
-
-
-plot <- ggplot(mean_prix, aes(x = date_mutation, y = mean_prix, color = traite, group = traite)) +
-  geom_point(size = 3) +  # Ajout des points
-  geom_line(size = 1) +   # Ajout des lignes pour relier les points
-  scale_color_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité"),
-                     na.translate = FALSE) +
-  labs(
-    title = "",
-    x = "Période",
-    y = "Prix au m²",
-    color = "Groupe :"
-  ) +
-  geom_vline(xintercept = "2022", linetype = "dashed", color = "black", size = 0.2) + 
-  annotate(
-    "text", x = "2022", y = max(mean_prix$mean_prix, na.rm = TRUE) -500, label = "Lancement métro B", 
-    color = "black", angle = 0, hjust = 0.58, size = 4  # Position et style du texte
-  ) +
-  theme_bw()
-
-ggsave("png/moy_prix.png", plot = plot, width = 8, height = 6, dpi = 300)
-
-```
-
-```{r}
-
-dvf_2023 <- dvf %>% filter(date_mutation==2023)
-
-plot <- ggplot(dvf_2023, aes(x=nearest_metro_distance, y = prix_m2, colour = as.factor(traite)),size=.25) + 
-  geom_jitter(height = .25, width = 0.2, alpha = I(.2)) +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2) +
-  theme_bw() + 
-  geom_vline(xintercept = 1000, lty="dashed") +
-  scale_colour_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
-  labs(
-    title = "",
-    x = "Distance au métro",
-    y = "Prix au m²",
-    color = "Groupe :"
-  )
-
-ggsave("png/prix_distance_2023.png", plot = plot, width = 8, height = 6, dpi = 300)
-
-```
 
