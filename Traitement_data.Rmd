@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 rm(list = ls())
 
+library(dplyr)
+library(readr)
+library(sf)
+
 seuil = 1000
 ```
 
@@ -17,9 +21,6 @@ seuil = 1000
 ## Importation des données de valeurs fonciaires
 
 ```{r warning=FALSE}
-library(dplyr)
-library(readr)
-library(sf)
 
 dvf_19 <- read_csv("data/35_2019.csv", show_col_types = FALSE)
 dvf_20 <- read_csv("data/35_2020.csv", show_col_types = FALSE)
@@ -152,20 +153,5 @@ inf <- quantile(dvf$prix_m2, 0.05, na.rm = TRUE)
 sup <- quantile(dvf$prix_m2, 0.95, na.rm = TRUE)
 
 dvf <- dvf %>% filter(sup >= prix_m2 & prix_m2 >= inf)
-
-table(dvf$date_mutation)
-
-
-table(dvf$date_mutation, dvf$traite)
-
-table(dvf$date_mutation, dvf$type_local)
-
-tapply(dvf$prix_m2, dvf$date_mutation, mean, na.rm = TRUE) %>% round(0)
-
-tapply(dvf$valeur_fonciere, dvf$date_mutation, mean, na.rm = TRUE) %>% round(0)
-
-tapply(dvf$surface_reelle_bati, dvf$date_mutation, mean, na.rm = TRUE) %>% round(0)
-
-summary(dvf)
 ```
 

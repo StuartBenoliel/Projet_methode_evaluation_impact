@@ -7,22 +7,55 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(stargazer)
+library(dplyr)
+library(tidyverse)
+library(mapview)
+library(webshot)
+library(htmlwidgets)
+library(classInt)
+library(ggplot2)
+```
+
+```{r}
+table(dvf$date_mutation)
+
+table(dvf$date_mutation, dvf$traite, dvf$type_local)
+
+```
+
+```{r}
+trait <- dvf %>%  filter(date_mutation %in% c(2021,2023)) %>% group_split(date_mutation)
+for(i in seq_along(trait)) {
+  stargazer(
+    data.frame(trait[[i]]),
+    type = "text", 
+    title = paste("Statistiques descriptives pour l'année", unique(trait[[i]]$date_mutation)),
+    summary = TRUE, 
+    digits = 2
+  )
+}
+
 ```
 
 
 ```{r}
-library(stargazer)
-library(dplyr)
-
-stargazer(dvf, 
-          type = "text", 
-          title = "Statistiques descriptives",
-          digits = 2,
-          style = "aer")
 
 trait <- dvf %>%  filter(date_mutation==2021) %>% group_split(traite)
 for(i in seq_along(trait)) {
   cat("Annee 2021")
+  stargazer(
+    data.frame(trait[[i]]),
+    type = "text", 
+    title = paste("Statistiques descriptives pour le groupe", unique(trait[[i]]$traite)),
+    summary = TRUE, 
+    digits = 2
+  )
+}
+
+trait <- dvf %>%  filter(date_mutation==2023) %>% group_split(traite)
+for(i in seq_along(trait)) {
+  cat("Annee 2023")
   stargazer(
     data.frame(trait[[i]]),
     type = "text", 
@@ -40,9 +73,6 @@ for(i in seq_along(trait)) {
 ## Visualisation des groupes traités et de contrôle en 2023
 
 ```{r}
-library(mapview)
-library(webshot)
-library(htmlwidgets)
 
 map <- mapview(
   dvf %>% filter(date_mutation == 2023 & traite == FALSE),
@@ -79,7 +109,6 @@ webshot("png/map_traite_controle_2023.html", file = "png/map_traite_controle_202
 ## Visualisation du prix au m2 en 2023
 
 ```{r}
-library(classInt)
 
 contour_aire_metro <- buffer_metro %>% 
   st_union() %>% 
@@ -123,7 +152,6 @@ webshot("png/map_prix_2023.html", file = "png/map_prix_2023.png",
 ## Visualisation du prix au m2 en 2021
 
 ```{r}
-library(classInt)
 
 contour_aire_metro <- buffer_metro %>% 
   st_union() %>% 
@@ -168,7 +196,7 @@ webshot("png/map_prix_2021.html", file = "png/map_prix_2021.png",
 ## Distribution des distances au station de mètro B
 
 ```{r}
-library(ggplot2)
+
 dvf %>% filter(date_mutation %in% c(2021, 2023)) %>% 
   pull(nearest_metro_distance) %>% 
   quantile(0.5)
@@ -186,7 +214,6 @@ ggsave("png/histogram_distance_metro.png", plot = plot, width = 8, height = 6, d
 ## Comparaison des distributions des variables X
 
 ```{r}
-library(tidyverse)
 
 df_long <- dvf %>% 
   filter(date_mutation %in% c(2021, 2023)) %>% 
@@ -218,25 +245,54 @@ ggsave("png/distrib_var_2023.png", plot = plot, width = 8, height = 6, dpi = 300
 ```
 
 
-```{r}
-library(ggplot2)
+```{r warning=FALSE}
+
 mean_prix<- dvf %>%
+  add_row(date_mutation = "2022", traite = NA) %>% 
   group_by(date_mutation, traite) %>%
   summarise(mean_prix = mean(prix_m2, na.rm = TRUE))
+
 
 plot <- ggplot(mean_prix, aes(x = date_mutation, y = mean_prix, color = traite, group = traite)) +
   geom_point(size = 3) +  # Ajout des points
   geom_line(size = 1) +   # Ajout des lignes pour relier les points
-  scale_color_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
+  scale_color_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité"),
+                     na.translate = FALSE) +
   labs(
     title = "",
     x = "Période",
     y = "Prix au m²",
     color = "Groupe :"
   ) +
+  geom_vline(xintercept = "2022", linetype = "dashed", color = "black", size = 0.2) + 
+  annotate(
+    "text", x = "2022", y = max(mean_prix$mean_prix, na.rm = TRUE) -500, label = "Lancement métro B", 
+    color = "black", angle = 0, hjust = 0.58, size = 4  # Position et style du texte
+  ) +
   theme_bw()
 
 ggsave("png/moy_prix.png", plot = plot, width = 8, height = 6, dpi = 300)
+
+```
+
+```{r}
+
+dvf_2023 <- dvf %>% filter(date_mutation==2023)
+
+plot <- ggplot(dvf_2023, aes(x=nearest_metro_distance, y = prix_m2, colour = as.factor(traite)),size=.25) + 
+  geom_jitter(height = .25, width = 0.2, alpha = I(.2)) +
+  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2) +
+  theme_bw() + 
+  geom_vline(xintercept = 1000, lty="dashed") +
+  scale_colour_manual(values = c("FALSE" = "#286AC7", "TRUE" = "red"), labels = c("Non traité", "Traité")) +
+  labs(
+    title = "",
+    x = "Distance au métro",
+    y = "Prix au m²",
+    color = "Groupe :"
+  )
+
+ggsave("png/prix_distance_2023.png", plot = plot, width = 8, height = 6, dpi = 300)
 
 ```
 

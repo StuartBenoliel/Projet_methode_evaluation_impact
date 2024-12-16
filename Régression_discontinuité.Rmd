@@ -15,53 +15,21 @@ library(rddtools)
 library(AER)
 library(ggthemes)
 library(gridExtra)
-```
 
-# Régression par discontinuité
-
-```{r}
-ggplot(data = dvf %>% filter(date_mutation==2023)) + 
-  geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
-  theme_bw() +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
-# Régressions conditionnelles par 'traite'
-```
-
-Visualisation du prix au mètre carré
-```{r}
-ggplot(dvf %>% filter(date_mutation=="2023"), aes(x=nearest_metro_distance, y = prix_m2, colour = as.factor(traite)),size=.25) + 
-  geom_jitter(height = .25, width = 0.2, alpha = I(.2)) + 
-  stat_smooth(method = loess, size = 1) +
-  theme_tufte() + 
-  ylab("") + 
-  xlab("") +
-  geom_vline(xintercept = 1000) +
-  theme(legend.position="none")+
-  ggtitle("Prix au m²")
-
+dvf_2023 <- dvf %>% filter(date_mutation==2023)
 ```
 
 ```{r}
-# Afficher la distribution des distances proches du cutpoint de 1000
-# Afficher la distribution des distances proches du cutpoint de 1000
-table(dvf$nearest_metro_distance[abs(dvf$nearest_metro_distance - 1000) < 500])
-table(dvf$traite[abs(dvf$nearest_metro_distance - 1000) < 500])
-
-bw_nearest_metro_distance <- rdd::IKbandwidth(dvf$nearest_metro_distance, dvf$prix_m2, cutpoint = 1000)
-```
-
-```{r}
-
+bw_nearest_metro_distance <- rdd::IKbandwidth(dvf_2023$nearest_metro_distance, dvf_2023$prix_m2, cutpoint = 1000, verbose = T)
 min_distance <- 1000 - bw_nearest_metro_distance
 max_distance <- 1000 + bw_nearest_metro_distance
 
 # Filtrer les individus dont la distance au métro se situe dans l'intervalle spécifié
-df_filtered <- dvf %>%
+df_filtered <- dvf_2023 %>%
   filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance)
 
 # Liste des variables numériques
-numeric_vars <- c('prix_m2', 'ind_snv', 'men_pauv', 'valeur_fonciere')
+numeric_vars <- c('prix_m2', 'valeur_fonciere', 'nombre_pieces_principales', "surface_reelle_bati")
 
 plot_list <- list()
 
@@ -77,24 +45,44 @@ for (var in numeric_vars) {
   plot_list[[var]] <- p  
 }
 
-combined_plot<-grid.arrange(grobs = plot_list, ncol = 2)
+combined_plot <- grid.arrange(grobs = plot_list, ncol = 2)
+combined_plot
 
-
-ggsave("work/Projet_methode_evolution_impact/boxplots_combines.png", combined_plot, width = 10, height = 8, dpi = 300)
+ggsave("png/boxplots_combines.png", combined_plot, width = 10, height = 8, dpi = 300)
 ```
 
 ```{r}
-m_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance + traite,
-                 data = dvf[dvf$nearest_metro_distance>1000-bw_nearest_metro_distance & dvf$nearest_metro_distance<1000 + bw_nearest_metro_distance,])
+m1_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance + traite + type_local + nombre_pieces_principales,
+                 data = dvf_2023)
 
-summary(m_prix_m2)
+summary(m1_prix_m2)
+
+min_distance <- 1000 - bw_nearest_metro_distance
+max_distance <- 1000 + bw_nearest_metro_distance
+
+m2_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance +traite+ type_local + nombre_pieces_principales,
+                 data = dvf_2023 %>%
+  filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance))
+
+summary(m2_prix_m2)
+
+min_distance <- 1000 - 2*bw_nearest_metro_distance
+max_distance <- 1000 + 2*bw_nearest_metro_distance
+
+m3_prix_m2 <- lm(prix_m2 ~ nearest_metro_distance + traite + type_local + nombre_pieces_principales,
+                 data = dvf_2023 %>%
+  filter(nearest_metro_distance >= min_distance & nearest_metro_distance <= max_distance))
+
+summary(m3_prix_m2)
 ```
-
 ```{r}
-ggplot(data = dvf %>% filter(date_mutation==2023)) + 
-  geom_point(aes(x=nearest_metro_distance, y= prix_m2 , color= traite), alpha = 0.6) +
-  theme_bw() +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2), method = "lm", se = FALSE, color = "black") +
-  geom_smooth(aes(x = nearest_metro_distance, y = prix_m2, color = traite), method = "lm", se = FALSE, linewidth = 2)
-# Régressions conditionnelles par 'traite'
+mod.list <- list(m1_prix_m2, m2_prix_m2, m3_prix_m2)
+stargazer(title = "Full regression models",
+          type="text",
+          header = F,
+          mod.list, 
+          model.names = F,
+          omit.stat = c("rsq","ser","f"),
+          column.labels = c("échantillon complet", "Optimal Bandwidth", "Double Bandwidth")) 
 ```
+
